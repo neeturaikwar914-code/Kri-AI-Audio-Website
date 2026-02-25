@@ -1,84 +1,101 @@
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 
-const TRACKS = [
-  { id: 'vocals', label: 'VOCALS', color: '#ff00ff' },
-  { id: 'drums', label: 'DRUMS', color: '#00f2ff' },
-  { id: 'bass', label: 'BASS', color: '#bc13fe' },
-  { id: 'other', label: 'OTHER', color: '#ffffff' }
+const TRACK_CONFIG = [
+  { id: 'vocals', label: '🎤 VOCALS', color: '#00f2ff' },
+  { id: 'drums', label: '🥁 DRUMS', color: '#bc13fe' },
+  { id: 'bass', label: '🎸 BASS', color: '#ff0055' },
+  { id: 'other', label: '🎹 OTHER', color: '#ffffff' }
 ];
 
 export default function StemPlayer({ stems }) {
-  const wavesurfers = useRef({});
+  const containerRefs = useRef({});
+  const wavesurferInstances = useRef({});
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [volumes, setVolumes] = useState({ vocals: 1, drums: 1, bass: 1, other: 1 });
 
   useEffect(() => {
-    // Initialize Wavesurfer for each stem
-    TRACKS.forEach((track) => {
+    let readyCount = 0;
+
+    // 1. Initialize all 4 tracks
+    TRACK_CONFIG.forEach((track) => {
       const ws = WaveSurfer.create({
-        container: `#wave-${track.id}`,
+        container: containerRefs.current[track.id],
         waveColor: '#1a1a1a',
         progressColor: track.color,
         cursorColor: track.color,
         barWidth: 2,
-        height: 50,
-        responsive: true,
+        height: 60,
+        url: stems[track.id], // Load stem from S3/Backend
       });
 
-      // Load the audio file from your backend/S3
-      ws.load(stems[track.id]);
-      wavesurfers.current[track.id] = ws;
+      // 2. Sync Seek/Click events
+      ws.on('interaction', () => {
+        const time = ws.getCurrentTime();
+        Object.values(wavesurferInstances.current).forEach(instance => {
+          if (instance !== ws) instance.setTime(time);
+        });
+      });
+
+      ws.on('ready', () => {
+        readyCount++;
+        if (readyCount === TRACK_CONFIG.length) setIsReady(true);
+      });
+
+      wavesurferInstances.current[track.id] = ws;
     });
 
-    // Sync playing: wait for all to be ready
-    const checkReady = setInterval(() => {
-      const allReady = Object.values(wavesurfers.current).every(ws => ws.isReady);
-      if (allReady) {
-        setIsLoaded(true);
-        clearInterval(checkReady);
-      }
-    }, 500);
-
+    // Cleanup on unmount
     return () => {
-      Object.values(wavesurfers.current).forEach(ws => ws.destroy());
+      Object.values(wavesurferInstances.current).forEach(ws => ws.destroy());
     };
   }, [stems]);
 
-  const togglePlay = () => {
-    Object.values(wavesurfers.current).forEach(ws => {
+  // Master Play/Pause
+  const togglePlayback = () => {
+    Object.values(wavesurferInstances.current).forEach(ws => {
       isPlaying ? ws.pause() : ws.play();
     });
     setIsPlaying(!isPlaying);
   };
 
-  const setVolume = (id, val) => {
-    wavesurfers.current[id].setVolume(val);
+  // Individual Volume Control
+  const handleVolumeChange = (id, val) => {
+    const numericVal = parseFloat(val);
+    setVolumes(prev => ({ ...prev, [id]: numericVal }));
+    wavesurferInstances.current[id].setVolume(numericVal);
   };
 
   return (
-    <div className="mixer-container fade-in">
-      <div className="mixer-header">
-        <button className="btn-neon" onClick={togglePlay} disabled={!isLoaded}>
-          {isPlaying ? 'PAUSE' : 'PLAY SESSION'}
+    <div className="mixer-card fade-in">
+      <div className="mixer-controls">
+        <button 
+          className={`btn-neon ${!isReady ? 'disabled' : ''}`} 
+          onClick={togglePlayback}
+          disabled={!isReady}
+        >
+          {!isReady ? 'LOADING STEMS...' : isPlaying ? 'PAUSE MIXER' : 'PLAY ALL'}
         </button>
       </div>
 
-      <div className="tracks-grid">
-        {TRACKS.map(track => (
-          <div key={track.id} className="track-card">
-            <span className="track-label">{track.label}</span>
-            <div id={`wave-${track.id}`} className="wave-box"></div>
-            <div className="controls">
+      <div className="stems-layout">
+        {TRACK_CONFIG.map(track => (
+          <div key={track.id} className="stem-row">
+            <div className="stem-meta">
+              <span className="label">{track.label}</span>
               <input 
                 type="range" 
-                min="0" max="1" step="0.05" 
-                defaultValue="1"
-                onChange={(e) => setVolume(track.id, e.target.value)}
+                min="0" max="1" step="0.01" 
+                value={volumes[track.id]}
+                onChange={(e) => handleVolumeChange(track.id, e.target.value)}
+                className="volume-slider"
               />
-              <button onClick={() => setVolume(track.id, 0)}>MUTE</button>
             </div>
+            <div 
+              ref={el => containerRefs.current[track.id] = el} 
+              className="waveform-container"
+            />
           </div>
         ))}
       </div>
