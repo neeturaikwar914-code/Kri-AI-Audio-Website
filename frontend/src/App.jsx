@@ -1,80 +1,119 @@
-import React, { useState, useEffect } from "react";
-import { uploadAudio, getRecentUploads, splitStems } from "./api";
+// frontend/src/App.jsx
+import React, { useState } from "react";
+import { uploadAudio, extractStems, applyEffect, getUploads } from "./api";
+import StemPlayer from "./components/StemPlayer";
 import "./app.css";
 
-export default function App() {
-  const [file, setFile] = useState(null);
+function App() {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploads, setUploads] = useState([]);
+  const [stems, setStems] = useState({});
   const [loading, setLoading] = useState(false);
-  const [stems, setStems] = useState([]);
-  const [recent, setRecent] = useState([]);
+  const [effect, setEffect] = useState("");
 
-  useEffect(() => {
-    fetchRecent();
-  }, []);
+  // File select
+  const handleFileChange = (e) => setSelectedFile(e.target.files[0]);
 
-  const fetchRecent = async () => {
-    const res = await getRecentUploads();
-    setRecent(res || []);
-  };
-
-  const handleUpload = async (e) => {
-    const audioFile = e.target.files[0];
-    if (!audioFile) return;
-    setFile(audioFile);
+  // Upload audio
+  const handleUpload = async () => {
+    if (!selectedFile) return alert("Please select a file!");
     setLoading(true);
-
     try {
-      const uploadRes = await uploadAudio(audioFile);
-      const stemRes = await splitStems(uploadRes.fileId);
-      setStems(stemRes.stems);
-      fetchRecent();
+      const data = await uploadAudio(selectedFile);
+      alert("File uploaded successfully!");
+      setSelectedFile(null);
+      await fetchUploads();
     } catch (err) {
+      alert("Upload failed. Check console.");
       console.error(err);
-      alert("Error processing audio!");
     }
     setLoading(false);
   };
 
+  // Fetch all uploads
+  const fetchUploads = async () => {
+    try {
+      const data = await getUploads();
+      setUploads(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Extract stems
+  const handleExtractStems = async (fileId) => {
+    setLoading(true);
+    try {
+      const data = await extractStems(fileId);
+      setStems((prev) => ({ ...prev, [fileId]: data }));
+    } catch (err) {
+      console.error(err);
+      alert("Stem extraction failed.");
+    }
+    setLoading(false);
+  };
+
+  // Apply audio effect
+  const handleEffect = async (fileId) => {
+    if (!effect) return alert("Select an effect!");
+    setLoading(true);
+    try {
+      const data = await applyEffect(fileId, effect);
+      setStems((prev) => ({ ...prev, [fileId]: { ...prev[fileId], processed: data.processed_file } }));
+      alert("Effect applied!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to apply effect.");
+    }
+    setLoading(false);
+  };
+
+  // Load uploads on first render
+  React.useEffect(() => { fetchUploads(); }, []);
+
   return (
     <div className="app-container">
-      <header>
-        <h1>Kri-AI Audio 2.0</h1>
-      </header>
+      <h1>Kri AI Audio Studio</h1>
 
-      <section className="upload-section">
-        <input type="file" accept="audio/*" onChange={handleUpload} />
-        {loading && <div className="loader">Processing...</div>}
-      </section>
+      <div className="upload-section">
+        <input type="file" onChange={handleFileChange} accept="audio/*" />
+        <button onClick={handleUpload} disabled={loading}>{loading ? "Uploading..." : "Upload Audio"}</button>
+      </div>
 
-      {stems.length > 0 && (
-        <section className="stems-section">
-          <h2>Stems</h2>
-          {stems.map((stem, i) => (
-            <div key={i} className="stem">
-              <p>{stem.name}</p>
-              <audio controls src={stem.url}></audio>
-              <a href={stem.url} download>
-                Download
-              </a>
-            </div>
-          ))}
-        </section>
-      )}
+      <div className="effect-section">
+        <label>Choose Effect:</label>
+        <select value={effect} onChange={(e) => setEffect(e.target.value)}>
+          <option value="">--Select--</option>
+          <option value="reverb">Reverb</option>
+          <option value="echo">Echo</option>
+          <option value="bassboost">Bass Boost</option>
+          <option value="vocal-remove">Vocal Remove</option>
+        </select>
+      </div>
 
-      {recent.length > 0 && (
-        <section className="recent-section">
-          <h2>Recent Uploads</h2>
-          <ul>
-            {recent.map((r, i) => (
-              <li key={i}>{r.filename}</li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <div className="uploads-list">
+        <h2>Uploaded Files</h2>
+        {uploads.length === 0 && <p>No files uploaded yet.</p>}
+        {uploads.map((file) => (
+          <div key={file.id} className="upload-item">
+            <p>{file.filename}</p>
+            <button onClick={() => handleExtractStems(file.id)} disabled={loading}>Extract Stems</button>
+            <button onClick={() => handleEffect(file.id)} disabled={loading || !stems[file.id]}>Apply Effect</button>
 
-      <footer>
-        <p>Powered by Kri-AI 2.0 🌐</p>
-      </footer>
+            {stems[file.id] && (
+              <div className="stems-player">
+                <StemPlayer label="Vocals" src={stems[file.id].vocals} />
+                <StemPlayer label="Drums" src={stems[file.id].drums} />
+                <StemPlayer label="Bass" src={stems[file.id].bass} />
+                <StemPlayer label="Other" src={stems[file.id].other} />
+                {stems[file.id].processed && <StemPlayer label="Processed" src={stems[file.id].processed} />}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
+export default App;
