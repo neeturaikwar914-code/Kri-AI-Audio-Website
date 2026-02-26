@@ -1,12 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kri AI Audio</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kri-AI Audio 2.0</title>
+  <link rel="stylesheet" href="/src/app.css" />
+  <style>
+    /* Fullscreen loader styles */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+    }
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: #0f0f0f;
+      z-index: 9999;
+    }
+    .spinner {
+      border: 6px solid #444;
+      border-top: 6px solid #1db954;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg);}
+      100% { transform: rotate(360deg);}
+    }
+    .loading-text {
+      font-size: 18px;
+      color: #1db954;
+      letter-spacing: 1px;
+    }
+  </style>
 </head>
 <body>
+  <!-- Loader before React loads -->
+  <div id="preloader">
+    <div class="spinner"></div>
+    <div class="loading-text">Loading Kri-AI Audio 2.0...</div>
+  </div>
+
+  <!-- React root -->
   <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+
+  <script type="module">
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import App from './src/App.jsx';
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+
+    // Hide preloader when React loads
+    window.addEventListener('load', () => {
+      const preloader = document.getElementById('preloader');
+      if(preloader) preloader.style.display = 'none';
+    });
+  </script>
 </body>
 </html>
