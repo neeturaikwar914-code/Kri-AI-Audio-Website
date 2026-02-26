@@ -1,17 +1,13 @@
-# render.yaml - Single service backend + frontend
 services:
   - type: web
-    name: kri-ai-single
+    name: kri-ai-meta
     env: python
-    plan: free
-    region: oregon
     buildCommand: |
       pip install -r backend/requirements.txt
       cd frontend
       npm install
       npm run build
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-    autoDeploy: true
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port 10000
     envVars:
-      - key: PORT
-        value: "10000"
+      - key: PYTHON_VERSION
+        value: 3.10.13
