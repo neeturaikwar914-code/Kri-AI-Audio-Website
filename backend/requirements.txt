@@ -2,3 +2,7 @@ fastapi>=0.111.0,<0.112
 uvicorn[standard]>=0.23.0,<0.24
 python-multipart>=0.0.7
 aiofiles>=23.1.0
+pydub>=0.25.1
+spleeter>=2.3.0
+ffmpeg-python>=0.3.0
+python-dotenv>=1.2.1
